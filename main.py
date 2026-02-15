@@ -2,7 +2,6 @@ from datetime import datetime
 from time import sleep
 from picamzero import Camera
 from exif import Image
-from datetime import datetime
 import cv2
 import math
 import numpy as np
@@ -125,7 +124,7 @@ class Engine:
         self.number_of_results = 0
         self.captures = Captures(self)
         self.calculator = Calculator(self)
-        self.ISS_MOVING_TIME_SECONDS = 1
+        self.ISS_MOVING_TIME_SECONDS = 5
         self.GSD = 12648  # GSD = 12648 for the High Quality Camera on the ISS.
 
 
