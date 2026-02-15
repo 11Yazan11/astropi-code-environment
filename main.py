@@ -65,7 +65,8 @@ class Calculator:
         brute_force = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
         matches = brute_force.match(descriptors_1, descriptors_2) # a list of landmarks that are matches between both images.
         matches_sorted = sorted(matches, key=lambda x: x.distance) # sort the list to start with the landmarks that match the most.
-        return matches_sorted
+        matches = matches_sorted[:30] 
+        return matches
     
     def find_matching_coordinates(self, keypoints_1, keypoints_2, matches):
         coordinates_1 = []
@@ -79,22 +80,11 @@ class Calculator:
             coordinates_2.append((x2,y2))
         return coordinates_1, coordinates_2
 
-    def calculate_mean_distance(self, coordinates_1, coordinates_2):
-        all_distances = 0
-        nb_of_distances = 0
-        merged_coordinates = list(zip(coordinates_1, coordinates_2))
-        for coordinate_pair in merged_coordinates:
-            point_1 = coordinate_pair[0]
-            point_2 = coordinate_pair[1]
-            point_1_x, point_2_x, = point_1[0], point_2[0]
-            point_1_y, point_2_y, = point_1[1], point_2[1]
-            delta_x = abs(point_2_x - point_1_x) # 'abs' because we don't care about the direction, only the value of the displacement.
-            delta_y = abs(point_2_y - point_1_y) # same idea.
-            distance = math.hypot(delta_x, delta_y)
-            all_distances += distance
-            nb_of_distances += 1
-        average_distance = all_distances/nb_of_distances
-        return average_distance
+    def calculate_mean_distance(self, coordinates_1, coordinates_2, matches):
+        distances = [math.hypot(x2-x1, y2-y1) for (x1,y1),(x2,y2) in zip(coordinates_1, coordinates_2)]
+        weights = [1/(m.distance + 1e-5) for m in matches]  # weighted average which favors better matches, added +1e-5 in the denominator to avoid division by 0.
+        weighted_average = sum(d*w for d,w in zip(distances, weights)) / sum(weights)
+        return weighted_average
     
     def calculate_speed_in_kmps(self, feature_distance, GSD, time_difference):
         distance = feature_distance * GSD / 100000 # [pixels] * [centimers/pixels] * 100000 = [pixels]*[kilometers/pixels] = [kilometers]
@@ -124,8 +114,8 @@ class Engine:
         self.number_of_results = 0
         self.captures = Captures(self)
         self.calculator = Calculator(self)
-        self.ISS_MOVING_TIME_SECONDS = 5
-        self.GSD = 12648  # GSD = 12648 for the High Quality Camera on the ISS.
+        self.ISS_MOVING_TIME_SECONDS = 7
+        self.GSD = 12648  # GSD = 12648 for the High Quality Camera on the ISS. Isn't actually constant, should have taken into account the height of the station to make it more accurate.
 
 
     def update_timer(self):
@@ -165,7 +155,7 @@ class Engine:
         keypoints1, keypoints2, descriptors1, descriptors2, mask1, mask2 = calc.calculate_features(calc.convert_to_cv(img1), calc.convert_to_cv(img2), max_nb_features)
         matches = calc.calculate_matches(descriptors1, descriptors2)
         coordinates_1, coordinates_2 = calc.find_matching_coordinates(keypoints1, keypoints2, matches)
-        average_feature_distance = calc.calculate_mean_distance(coordinates_1, coordinates_2) # average distance between 2 associated feature points.
+        average_feature_distance = calc.calculate_mean_distance(coordinates_1, coordinates_2, matches) # average distance between 2 associated feature points.
         speed = calc.calculate_speed_in_kmps(average_feature_distance, self.GSD, time_difference)
         #self.display_matches(calc.convert_to_cv(img1), calc.convert_to_cv(img2), keypoints1, keypoints2, matches, mask1, mask2)
         self.estimate_speed_kmps += speed
